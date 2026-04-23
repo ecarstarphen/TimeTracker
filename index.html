@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Time Tracker">
+  <title>Time Tracker</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --bg:        #0f0f0f;
+      --surface:   #161616;
+      --surface2:  #1e1e1e;
+      --border:    #242424;
+      --border2:   #2e2e2e;
+      --text:      #e8e8e2;
+      --muted:     #888;
+      --dim:       #555;
+      --dimmer:    #3a3a3a;
+      --green:     #4ade80;
+      --green-bg:  #1a2e1a;
+      --green-bd:  #2d4a2d;
+      --red:       #f87171;
+      --red-bg:    #2e1a1a;
+      --red-bd:    #4a2d2d;
+      --orange:    #fb923c;
+      --orange-bg: #2a1f0e;
+      --orange-bd: #4a3520;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bot: env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      overflow: hidden;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      padding-top: var(--safe-top);
+      padding-bottom: var(--safe-bot);
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 1.25rem 0.75rem;
+      flex-shrink: 0;
+    }
+    .brand {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .22em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .clock-block { text-align: right; }
+    .clock-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 21px;
+      font-weight: 300;
+      color: #a8a89a;
+      letter-spacing: .04em;
+    }
+    .clock-date {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      margin-top: 1px;
+    }
+
+    /* ── SCROLLABLE BODY ── */
+    .scroll-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      padding: 0 1.25rem 1.5rem;
+    }
+    .scroll-body::-webkit-scrollbar { display: none; }
+
+    /* ── STATUS BAR ── */
+    .status-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      background: var(--border2);
+      flex-shrink: 0;
+      transition: background .4s, box-shadow .4s;
+    }
+    .dot.in  { background: var(--green);  box-shadow: 0 0 10px #4ade8055; animation: pulse 2s infinite; }
+    .dot.out { background: var(--orange); box-shadow: 0 0 10px #fb923c55; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+    .status-label { flex: 1; font-size: 14px; color: var(--muted); }
+    .status-label strong { color: var(--text); font-weight: 500; }
+    .elapsed {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: var(--green);
+      min-width: 56px;
+      text-align: right;
+    }
+
+    /* ── BUTTONS ── */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 1rem;
+    }
+    .btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 1.1rem 0.75rem;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform .12s, opacity .12s;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .btn:active { transform: scale(.95); opacity: .85; }
+    .btn:disabled { opacity: .28; pointer-events: none; }
+    .btn-icon { font-size: 22px; line-height: 1; }
+    .btn-sub  { font-size: 11px; font-weight: 400; opacity: .65; letter-spacing: .04em; }
+
+    .btn-in   { background: var(--green-bg);  color: var(--green);  border-color: var(--green-bd);  }
+    .btn-out  { background: var(--red-bg);    color: var(--red);    border-color: var(--red-bd);    }
+    .btn-call { background: var(--orange-bg); color: var(--orange); border-color: var(--orange-bd); }
+    .btn-exp  { background: var(--surface);   color: var(--muted);  border-color: var(--border);    }
+
+    /* ── SUMMARY ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .card-title {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: .85rem;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+    .metric {
+      background: #111;
+      border-radius: 10px;
+      padding: .7rem .75rem;
+    }
+    .metric-lbl { font-size: 11px; color: var(--dim); margin-bottom: 4px; }
+    .metric-val {
+      font-family: 'DM Mono', monospace;
+      font-size: 17px;
+      font-weight: 400;
+      color: var(--text);
+    }
+    .metric-val.g { color: var(--green); }
+    .metric-val.o { color: var(--orange); }
+    .week-range {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--dimmer);
+      margin-top: .75rem;
+    }
+
+    /* ── TABS ── */
+    .tabs {
+      display: flex;
+      gap: 6px;
+      margin-bottom: .75rem;
+    }
+    .tab {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .38rem .9rem;
+      font-size: 12px;
+      font-family: inherit;
+      color: var(--dim);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .tab.active { background: var(--surface2); color: var(--text); border-color: var(--border2); }
+
+    /* ── LOG ── */
+    .log-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: .6rem;
+    }
+    .log-count {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      color: var(--dim);
+      letter-spacing: .1em;
+    }
+    .clear-btn {
+      background: transparent;
+      border: none;
+      font-family: inherit;
+      font-size: 11px;
+      color: var(--dimmer);
+      cursor: pointer;
+      padding: 0;
+    }
+    .clear-btn:active { color: var(--red); }
+
+    .log-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .log-item {
+      background: #131313;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: .75rem 1rem;
+      display: grid;
+      grid-template-columns: 10px 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+    .pip {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .pip.in   { background: var(--green); }
+    .pip.out  { background: var(--red); }
+    .pip.call { background: var(--orange); }
+
+    .log-type  { font-size: 13px; font-weight: 500; color: #d4d4cc; }
+    .log-date  { font-size: 11px; color: var(--dim); margin-top: 2px; }
+    .log-right { text-align: right; }
+    .log-time  { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); }
+    .log-dur   { font-size: 11px; color: var(--green); margin-top: 2px; }
+
+    .empty {
+      text-align: center;
+      padding: 2rem 1rem;
+      color: var(--dimmer);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    /* ── TOAST ── */
+    .toast {
+      position: fixed;
+      bottom: calc(1.5rem + var(--safe-bot));
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      color: var(--text);
+      font-size: 13px;
+      padding: .6rem 1.2rem;
+      border-radius: 999px;
+      white-space: nowrap;
+      opacity: 0;
+      transition: transform .25s, opacity .25s;
+      z-index: 999;
+      pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div class="topbar">
+    <div class="brand">Time Tracker</div>
+    <div class="clock-block">
+      <div class="clock-time" id="clockTime">--:--:--</div>
+      <div class="clock-date" id="clockDate"></div>
+    </div>
+  </div>
+
+  <div class="scroll-body">
+
+    <!-- Status -->
+    <div class="status-bar">
+      <div class="dot" id="dot"></div>
+      <div class="status-label" id="statusLabel">Not clocked in</div>
+      <div class="elapsed" id="elapsed"></div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="btn-grid">
+      <button class="btn btn-in"  id="btnIn"  onclick="clockIn()">
+        <span class="btn-icon">▶</span>
+        Clock In
+        <span class="btn-sub">Start shift</span>
+      </button>
+      <button class="btn btn-out" id="btnOut" onclick="clockOut()" disabled>
+        <span class="btn-icon">⏸</span>
+        Clock Out
+        <span class="btn-sub">End shift</span>
+      </button>
+      <button class="btn btn-call" onclick="callIn()">
+        <span class="btn-icon">📞</span>
+        Call In
+        <span class="btn-sub">Log absence</span>
+      </button>
+      <button class="btn btn-exp" onclick="exportCSV()">
+        <span class="btn-icon">↓</span>
+        Export
+        <span class="btn-sub">CSV / Sheets</span>
+      </button>
+    </div>
+
+    <!-- Weekly Summary -->
+    <div class="card">
+      <div class="card-title">This Week</div>
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-lbl">Hours</div>
+          <div class="metric-val g" id="mHours">0h 0m</div>
+        </div>
+        <div class="metric">
+          <div class="metric-lbl">Days In</div>
+          <div class="metric-val" id="mDays">0</div>
+        </div>
+        <div class="metric">
+          <div class="metric-lbl">Call-Ins</div>
+          <div class="metric-val o" id="mCalls">0</div>
+        </div>
+      </div>
+      <div class="week-range" id="weekRange"></div>
+    </div>
+
+    <!-- Log -->
+    <div class="tabs">
+      <button class="tab active" onclick="setTab('week', this)">This Week</button>
+      <button class="tab" onclick="setTab('all', this)">All Entries</button>
+    </div>
+    <div class="log-meta">
+      <span class="log-count" id="logCount">0 ENTRIES</span>
+      <button class="clear-btn" onclick="clearAll()">Clear all</button>
+    </div>
+    <div class="log-list" id="logList">
+      <div class="empty">No entries yet.<br>Tap Clock In to begin.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──
+var LKEY = 'tt_log_v2';
+var SKEY = 'tt_state_v2';
+var log = [];
+var clockInTime = null;
+var elapsedTick = null;
+var currentTab = 'week';
+
+// ── Storage ──
+function saveLog() {
+  try {
+    localStorage.setItem(LKEY, JSON.stringify(log.map(function(e) {
+      return { type: e.type, time: e.time.toISOString(), label: e.label, duration: e.duration || null };
+    })));
+  } catch(e) {}
+}
+function saveState() {
+  try {
+    localStorage.setItem(SKEY, JSON.stringify({ clockInTime: clockInTime ? clockInTime.toISOString() : null }));
+  } catch(e) {}
+}
+function loadAll() {
+  try {
+    var raw = localStorage.getItem(LKEY);
+    if (raw) log = JSON.parse(raw).map(function(e) {
+      return { type: e.type, time: new Date(e.time), label: e.label, duration: e.duration };
+    });
+    var st = localStorage.getItem(SKEY);
+    if (st) {
+      var s = JSON.parse(st);
+      if (s.clockInTime) {
+        clockInTime = new Date(s.clockInTime);
+        applyStatus('in');
+        document.getElementById('btnIn').disabled = true;
+        document.getElementById('btnOut').disabled = false;
+        startElapsed();
+      }
+    }
+  } catch(e) {}
+  renderAll();
+}
+
+// ── Clock ──
+function updateClock() {
+  var d = new Date();
+  document.getElementById('clockTime').textContent =
+    d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  document.getElementById('clockDate').textContent =
+    d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// ── Formatting ──
+function fmtElapsed(ms) {
+  var s = Math.floor(ms / 1000), h = Math.floor(s / 3600); s %= 3600;
+  var m = Math.floor(s / 60); s %= 60;
+  return (h ? h + 'h ' : '') + (m ? m + 'm ' : '') + s + 's';
+}
+function fmtDur(ms) {
+  var m = Math.round(ms / 60000), h = Math.floor(m / 60); m %= 60;
+  return h ? (h + 'h ' + (m ? m + 'm' : '')) : m + 'm';
+}
+function fmtHM(ms) {
+  var m = Math.round(ms / 60000), h = Math.floor(m / 60); m %= 60;
+  return h + 'h ' + m + 'm';
+}
+function dateStr(d) {
+  return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// ── Status ──
+function applyStatus(type) {
+  var dot = document.getElementById('dot');
+  var lbl = document.getElementById('statusLabel');
+  var el  = document.getElementById('elapsed');
+  dot.className = 'dot';
+  el.textContent = '';
+  if (type === 'in') {
+    dot.classList.add('in');
+    lbl.innerHTML = 'Status: <strong>Clocked In</strong>';
+  } else if (type === 'call') {
+    dot.classList.add('out');
+    lbl.innerHTML = 'Status: <strong>Called In</strong>';
+  } else {
+    lbl.textContent = 'Not clocked in';
+  }
+}
+function startElapsed() {
+  clearInterval(elapsedTick);
+  elapsedTick = setInterval(function() {
+    document.getElementById('elapsed').textContent = fmtElapsed(new Date() - clockInTime);
+  }, 1000);
+}
+
+// ── Actions ──
+function clockIn() {
+  if (clockInTime) return;
+  clockInTime = new Date();
+  log.unshift({ type: 'in', time: clockInTime, label: 'Clock In' });
+  applyStatus('in');
+  document.getElementById('btnIn').disabled = true;
+  document.getElementById('btnOut').disabled = false;
+  startElapsed();
+  saveLog(); saveState(); renderAll();
+  toast('Clocked in ✓');
+}
+function clockOut() {
+  if (!clockInTime) return;
+  var now = new Date();
+  var dur = now - clockInTime;
+  log.unshift({ type: 'out', time: now, label: 'Clock Out', duration: dur });
+  log.forEach(function(e) { if (e.type === 'in' && !e.duration) e.duration = dur; });
+  clockInTime = null;
+  clearInterval(elapsedTick);
+  document.getElementById('elapsed').textContent = '';
+  applyStatus('out');
+  document.getElementById('btnIn').disabled = false;
+  document.getElementById('btnOut').disabled = true;
+  saveLog(); saveState(); renderAll();
+  toast('Clocked out — ' + fmtDur(dur));
+}
+function callIn() {
+  var now = new Date();
+  log.unshift({ type: 'call', time: now, label: 'Call In' });
+  if (!clockInTime) applyStatus('call');
+  saveLog(); renderAll();
+  toast('Call-in logged ✓');
+}
+function clearAll() {
+  if (!confirm('Clear all entries? This cannot be undone.')) return;
+  log = [];
+  saveLog();
+  renderAll();
+}
+
+// ── Week bounds ──
+function weekBounds() {
+  var now = new Date();
+  var mon = new Date(now);
+  mon.setHours(0, 0, 0, 0);
+  mon.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+  var sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  sun.setHours(23, 59, 59, 999);
+  return { start: mon, end: sun };
+}
+
+// ── Render ──
+function renderSummary() {
+  var wb = weekBounds();
+  var week = log.filter(function(e) { return e.time >= wb.start && e.time <= wb.end; });
+  var ms = 0, days = new Set(), calls = 0;
+  week.forEach(function(e) {
+    if (e.type === 'out' && e.duration) ms += e.duration;
+    if (e.type === 'in') days.add(e.time.toDateString());
+    if (e.type === 'call') calls++;
+  });
+  document.getElementById('mHours').textContent = fmtHM(ms);
+  document.getElementById('mDays').textContent  = days.size;
+  document.getElementById('mCalls').textContent = calls;
+  document.getElementById('weekRange').textContent =
+    wb.start.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' – ' +
+    wb.end.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function renderLog() {
+  var wb = weekBounds();
+  var entries = currentTab === 'week'
+    ? log.filter(function(e) { return e.time >= wb.start && e.time <= wb.end; })
+    : log;
+
+  document.getElementById('logCount').textContent =
+    entries.length + ' ENTR' + (entries.length === 1 ? 'Y' : 'IES');
+
+  var list = document.getElementById('logList');
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="empty">No entries here yet.</div>';
+    return;
+  }
+  list.innerHTML = entries.map(function(e) {
+    var pip = e.type === 'in' ? 'in' : e.type === 'out' ? 'out' : 'call';
+    var dur = e.duration ? '<div class="log-dur">' + fmtDur(e.duration) + '</div>' : '';
+    return '<div class="log-item">' +
+      '<div class="pip ' + pip + '"></div>' +
+      '<div><div class="log-type">' + e.label + '</div><div class="log-date">' + dateStr(e.time) + '</div></div>' +
+      '<div class="log-right"><div class="log-time">' +
+        e.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+      '</div>' + dur + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderAll() { renderSummary(); renderLog(); }
+
+function setTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  el.classList.add('active');
+  renderLog();
+}
+
+// ── Export ──
+function exportCSV() {
+  if (log.length === 0) { toast('No entries to export'); return; }
+  var rows = [['Type', 'Date', 'Time', 'Duration (min)']];
+  log.slice().reverse().forEach(function(e) {
+    rows.push([
+      e.label,
+      e.time.toLocaleDateString([], { year: 'numeric', month: '2-digit', day: '2-digit' }),
+      e.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      e.duration ? Math.round(e.duration / 60000) : ''
+    ]);
+  });
+  var csv = rows.map(function(r) {
+    return r.map(function(c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(',');
+  }).join('\n');
+  var blob = new Blob([csv], { type: 'text/csv' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'time-log-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('Exported ✓');
+}
+
+// ── Toast ──
+var toastTimer;
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function() { t.classList.remove('show'); }, 2200);
+}
+
+// ── Service Worker ──
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./sw.js').catch(function() {});
+  });
+}
+
+// ── Init ──
+setInterval(updateClock, 1000);
+updateClock();
+loadAll();
+</script>
+</body>
+</html>
